@@ -1,17 +1,18 @@
-name: Build Wheels
+name: Build Windows Wheels
 
 on:
-  workflow_dispatch:        # allows manual trigger
+  workflow_dispatch:
   push:
     tags:
-      - "v*"                # auto trigger on version tags like v4.0.11
+      - "v*"
 
 jobs:
-  build-windows-wheel:
+  build-windows:
     runs-on: windows-latest
     strategy:
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+
     steps:
       - uses: actions/checkout@v3
 
@@ -19,17 +20,32 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
+          architecture: x64
 
-      - name: Install build deps
+      # ✅ Ensure MSVC and Windows SDK are available
+      - name: Install MSVC Build Tools
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # ✅ Install core Python build deps
+      - name: Install Python build deps
         run: |
           python -m pip install --upgrade pip setuptools wheel build
+          python -m pip install cython numpy pybind11
 
-      - name: Build wheel
+      # ✅ Install project dependencies if needed (adjust!)
+      - name: Install project deps
         run: |
-          python -m build --wheel
+          pip install -r requirements.txt || echo "No extra deps"
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+      # ✅ Build wheel
+      - name: Build wheel
+        run: python -m build --wheel
+
+      # ✅ Upload wheel to release (only on tags)
+      - name: Upload wheel to Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: stringzilla-wheels
-          path: dist/*.whl
+          files: dist/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
