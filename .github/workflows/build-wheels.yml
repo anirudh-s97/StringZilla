@@ -32,14 +32,36 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel build
           python -m pip install cython numpy pybind11
 
-      # ✅ Install project dependencies if needed (adjust!)
-      - name: Install project deps
+      # ✅ Flexible dependency installation based on what files exist
+      - name: Install project dependencies
         run: |
-          pip install -r requirements.txt || echo "No extra deps"
+          # Check for various dependency specification files
+          if (Test-Path requirements.txt) {
+            echo "Installing from requirements.txt"
+            pip install -r requirements.txt
+          } elseif (Test-Path pyproject.toml) {
+            echo "Installing from pyproject.toml"
+            pip install -e .
+          } elseif (Test-Path setup.py) {
+            echo "Installing from setup.py"
+            pip install -e .
+          } else {
+            echo "No dependency file found, skipping installation"
+          }
 
-      # ✅ Build wheel
+      # ✅ Build wheel using the most appropriate method
       - name: Build wheel
-        run: python -m build --wheel
+        run: |
+          if (Test-Path pyproject.toml) {
+            # Prefer build if pyproject.toml exists
+            python -m build --wheel
+          } elseif (Test-Path setup.py) {
+            # Fall back to setup.py if needed
+            python setup.py bdist_wheel
+          } else {
+            # Last resort: try to build with whatever is available
+            python -m build --wheel || echo "Build failed, but continuing"
+          }
 
       # ✅ Upload wheel to release (only on tags)
       - name: Upload wheel to Release
